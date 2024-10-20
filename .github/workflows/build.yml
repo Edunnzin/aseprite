@@ -26,17 +26,22 @@ jobs:
           build-tools: "30.0.3"
           ndk: "21.4.7075529"  # Versão do NDK necessária para compilar o código C++
 
-      # Etapa 3: Instalar dependências de build como CMake e ninja
-      - name: Install CMake and Ninja
+      # Etapa 3: Instalar dependências de build como CMake, Ninja e outros necessários
+      - name: Install CMake, Ninja and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build
+          sudo apt-get install -y cmake ninja-build libxcursor-dev libxi-dev libgl1-mesa-dev libfontconfig1-dev libharfbuzz-dev
 
       # Etapa 4: Verificar conteúdo do repositório
       - name: List source directory
         run: ls -la
 
-      # Etapa 5: Criar diretório de build e configurar CMake
+      # Etapa 5: Baixar dependências do Aseprite (incluindo Skia)
+      - name: Download Aseprite dependencies
+        run: |
+          git submodule update --init --recursive
+
+      # Etapa 6: Criar diretório de build e configurar CMake
       - name: Configure CMake for Android NDK
         run: |
           mkdir -p build
@@ -52,12 +57,12 @@ jobs:
             -DSKIA_INCLUDE_DIR=../third_party/skia/include \
             ../  # Certifique-se de que CMake aponte para o diretório correto do CMakeLists.txt
 
-      # Etapa 6: Compilar o projeto
+      # Etapa 7: Compilar o projeto
       - name: Build Aseprite for Android
         run: |
           cmake --build . --target aseprite
 
-      # Etapa 7: Carregar os binários/artefatos compilados
+      # Etapa 8: Carregar os binários/artefatos compilados
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
