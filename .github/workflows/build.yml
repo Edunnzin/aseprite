@@ -32,17 +32,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build
 
-      # Etapa 4: Baixar dependências do Aseprite (Skia, Freetype etc.)
-      - name: Download Aseprite dependencies
-        run: |
-          git clone --recursive https://github.com/aseprite/aseprite.git
-          cd aseprite
-          mkdir build
-          cd build
+      # Etapa 4: Verificar conteúdo do repositório
+      - name: List source directory
+        run: ls -la
 
-      # Etapa 5: Configurar o projeto com CMake para o Android NDK
+      # Etapa 5: Criar diretório de build e configurar CMake
       - name: Configure CMake for Android NDK
         run: |
+          mkdir -p build
+          cd build
           cmake \
             -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
@@ -52,7 +50,7 @@ jobs:
             -DSKIA_DIR=../third_party/skia \
             -DSKIA_LIBRARY_DIR=../third_party/skia/out/Release \
             -DSKIA_INCLUDE_DIR=../third_party/skia/include \
-            ..
+            ../  # Certifique-se de que CMake aponte para o diretório correto do CMakeLists.txt
 
       # Etapa 6: Compilar o projeto
       - name: Build Aseprite for Android
