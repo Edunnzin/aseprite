@@ -1,4 +1,4 @@
-name: Build Aseprite for Android
+name: Build Aseprite for Windows
 
 on:
   push:
@@ -9,62 +9,36 @@ on:
       - main
 
 jobs:
-  build-android:
-    name: Build Aseprite for Android
-    runs-on: ubuntu-latest
+  build:
+    runs-on: windows-latest
 
     steps:
-      # Etapa 1: Checar o código-fonte
-      - name: Checkout the repository
-        uses: actions/checkout@v2
+    - name: Check out the repository
+      uses: actions/checkout@v2
 
-      # Etapa 2: Configurar o ambiente do NDK para Android
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v2
-        with:
-          api-level: 30  # Defina o nível da API que você deseja usar
-          build-tools: "30.0.3"
-          ndk: "21.4.7075529"  # Versão do NDK necessária para compilar o código C++
+    - name: Set up MSYS2
+      uses: msys2/setup-msys2@v2
 
-      # Etapa 3: Instalar dependências de build como CMake, Ninja e outros necessários
-      - name: Install CMake, Ninja and dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libxcursor-dev libxi-dev libgl1-mesa-dev libfontconfig1-dev libharfbuzz-dev
+    - name: Install dependencies
+      run: |
+        pacman -Syu --noconfirm
+        pacman -S --noconfirm mingw-w64-x86_64-gtk3 mingw-w64-x86_64-cmake mingw-w64-x86_64-fftw mingw-w64-x86_64-gcc
 
-      # Etapa 4: Verificar conteúdo do repositório
-      - name: List source directory
-        run: ls -la
+    - name: Build Aseprite
+      run: |
+        mkdir build
+        cd build
+        cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release ..
+        mingw32-make aseprite
 
-      # Etapa 5: Baixar dependências do Aseprite (incluindo Skia)
-      - name: Download Aseprite dependencies
-        run: |
-          git submodule update --init --recursive
+    - name: Package Aseprite
+      run: |
+        mkdir -p aseprite-bin
+        cp -r build/bin/* aseprite-bin/
+        cp aseprite-bin/aseprite.exe aseprite.exe  # Renomeia o executável para aseprite.exe
 
-      # Etapa 6: Criar diretório de build e configurar CMake
-      - name: Configure CMake for Android NDK
-        run: |
-          mkdir -p build
-          cd build
-          cmake \
-            -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=armeabi-v7a \
-            -DANDROID_PLATFORM=android-30 \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DSKIA_DIR=../third_party/skia \
-            -DSKIA_LIBRARY_DIR=../third_party/skia/out/Release \
-            -DSKIA_INCLUDE_DIR=../third_party/skia/include \
-            ../  # Certifique-se de que CMake aponte para o diretório correto do CMakeLists.txt
-
-      # Etapa 7: Compilar o projeto
-      - name: Build Aseprite for Android
-        run: |
-          cmake --build . --target aseprite
-
-      # Etapa 8: Carregar os binários/artefatos compilados
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Aseprite Android APK
-          path: build/aseprite.apk
+    - name: Upload Aseprite Executable
+      uses: actions/upload-artifact@v4
+      with:
+        name: aseprite
+        path: aseprite.exe  # Define o caminho para o executável
