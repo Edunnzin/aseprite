@@ -1,111 +1,67 @@
-name: build
-on: [push, pull_request]
+name: Build Aseprite for Android
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-        build_type: [RelWithDebInfo, Debug]
-        ui: [gui, cli]
-        scripting: [lua, noscripts]
-        exclude:
-          - build_type: Debug
-            ui: gui
-          - build_type: RelWithDebInfo
-            ui: cli
-          - build_type: RelWithDebInfo
-            scripting: noscripts
+  build-android:
+    name: Build Aseprite for Android
+    runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
-    - name: Install Dependencies
-      if: runner.os == 'Linux'
-      shell: bash
-      run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y \
-          libpixman-1-dev libfreetype6-dev libharfbuzz-dev zlib1g-dev \
-          libx11-dev libxcursor-dev libxi-dev libgl1-mesa-dev
-    - name: Install Skia
-      if: ${{ matrix.ui == 'gui' }}
-      shell: bash
-      run: |
-        if [[ "${{ runner.os }}" == "Windows" ]] ; then
-          choco install wget -y --no-progress
-          wget https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Windows-Release-x64.zip
-          unzip Skia-Windows-Release-x64.zip -d skia
-        elif [[ "${{ runner.os }}" == "macOS" ]] ; then
-          wget https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-macOS-Release-arm64.zip
-          unzip Skia-macOS-Release-arm64.zip -d skia
-        else
-          wget https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Linux-Release-x64-libstdc++.zip
-          unzip Skia-Linux-Release-x64-libstdc++.zip -d skia
-        fi
-    - name: ccache
-      uses: hendrikmuhs/ccache-action@v1
-      if: ${{ runner.os == 'Linux' || runner.os == 'macOS' }}
-      with:
-        key: ${{ matrix.os }}-${{ matrix.ui }}-${{ matrix.scripting }}-${{ matrix.build_type }}
-    - uses: aseprite/get-ninja@main
-    - uses: ilammy/msvc-dev-cmd@v1
-      if: runner.os == 'Windows'
-    - name: Generating Makefiles
-      shell: bash
-      run: |
-        if [[ "${{ runner.os }}" == "Windows" ]] ; then
-          export enable_ccache=off
-        else
-          export enable_ccache=on
-        fi
+      # Etapa 1: Checar o código-fonte
+      - name: Checkout the repository
+        uses: actions/checkout@v2
 
-        if [[ "${{ matrix.ui }}" == "gui" ]] ; then
-          export laf_backend=skia
-        else
-          export laf_backend=none
-        fi
+      # Etapa 2: Configurar o ambiente do NDK para Android
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v2
+        with:
+          api-level: 30  # Defina o nível da API que você deseja usar
+          build-tools: "30.0.3"
+          ndk: "21.4.7075529"  # Versão do NDK necessária para compilar o código C++
 
-        if [[ "${{ matrix.scripting }}" == "lua" ]] ; then
-          export enable_scripting=on
-        else
-          export enable_scripting=off
-        fi
+      # Etapa 3: Instalar dependências de build como CMake e ninja
+      - name: Install CMake and Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
 
-        if [[ "${{ runner.os }}" == "macOS" ]] ; then
-          export skia_arch=arm64
-        else
-          export skia_arch=x64
-        fi
+      # Etapa 4: Baixar dependências do Aseprite (Skia, Freetype etc.)
+      - name: Download Aseprite dependencies
+        run: |
+          git clone --recursive https://github.com/aseprite/aseprite.git
+          cd aseprite
+          mkdir build
+          cd build
 
-        cmake -S . -B build -G Ninja \
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 \
-          -DENABLE_TESTS=ON \
-          -DENABLE_SCRIPTING=$enable_scripting \
-          -DENABLE_CCACHE=$enable_ccache \
-          -DLAF_BACKEND=$laf_backend \
-          -DSKIA_DIR=skia \
-          -DSKIA_LIBRARY_DIR=skia/out/Release-$skia_arch
-    - name: Compiling
-      shell: bash
-      run: |
-        cd build && ninja
-    - name: Running C++ Tests
-      shell: bash
-      run: |
-        if [[ "${{ runner.os }}" == "Linux" ]] ; then
-          export XVFB=xvfb-run
-        fi
-        cd build && $XVFB ctest --output-on-failure
-    - name: Running CLI Tests
-      if: ${{ matrix.scripting == 'lua' }}
-      shell: bash
-      run: |
-        if [[ "${{ runner.os }}" == "Linux" ]] ; then
-          export XVFB=xvfb-run
-        fi
-        export ASEPRITE=$PWD/build/bin/aseprite
-        cd tests
-        $XVFB bash run-tests.sh
+      # Etapa 5: Configurar o projeto com CMake para o Android NDK
+      - name: Configure CMake for Android NDK
+        run: |
+          cmake \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=armeabi-v7a \
+            -DANDROID_PLATFORM=android-30 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSKIA_DIR=../third_party/skia \
+            -DSKIA_LIBRARY_DIR=../third_party/skia/out/Release \
+            -DSKIA_INCLUDE_DIR=../third_party/skia/include \
+            ..
+
+      # Etapa 6: Compilar o projeto
+      - name: Build Aseprite for Android
+        run: |
+          cmake --build . --target aseprite
+
+      # Etapa 7: Carregar os binários/artefatos compilados
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aseprite Android APK
+          path: build/aseprite.apk
