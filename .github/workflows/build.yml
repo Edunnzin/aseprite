@@ -22,14 +22,15 @@ jobs:
     - name: Install dependencies
       run: |
         choco install --yes git
-        choco install --yes gtksharp
         choco install --yes mingw
+        choco install --yes gtk3  # Instala o GTK3, se necessário
+        choco install --yes cmake
 
     - name: Build Aseprite
       run: |
         mkdir build
         cd build
-        cmake .. -G "MinGW Makefiles"
+        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
         mingw32-make aseprite
 
     - name: Package Aseprite
