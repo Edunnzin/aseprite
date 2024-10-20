@@ -16,29 +16,24 @@ jobs:
     - name: Check out the repository
       uses: actions/checkout@v2
 
-    - name: Set up MSYS2
-      uses: msys2/setup-msys2@v2
+    - name: Setup Visual Studio
+      uses: microsoft/setup-msbuild@v1.1.0
 
     - name: Install dependencies
       run: |
-        pacman -Syu --noconfirm
-        pacman -S --noconfirm mingw-w64-x86_64-gtk3 mingw-w64-x86_64-cmake mingw-w64-x86_64-fftw mingw-w64-x86_64-gcc
+        nuget restore aseprite.sln
 
     - name: Build Aseprite
       run: |
-        mkdir build
-        cd build
-        cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release ..
-        mingw32-make aseprite
+        msbuild aseprite.sln /p:Configuration=Release /p:Platform=x64
 
     - name: Package Aseprite
       run: |
         mkdir -p aseprite-bin
-        cp -r build/bin/* aseprite-bin/
-        cp aseprite-bin/aseprite.exe aseprite.exe  # Renomeia o executável para aseprite.exe
+        copy /Y bin\Release\aseprite.exe aseprite-bin\aseprite.exe
 
     - name: Upload Aseprite Executable
       uses: actions/upload-artifact@v4
       with:
         name: aseprite
-        path: aseprite.exe  # Define o caminho para o executável
+        path: aseprite-bin\aseprite.exe
