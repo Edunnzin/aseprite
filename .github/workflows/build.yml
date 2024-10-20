@@ -1,4 +1,4 @@
-name: Build Aseprite for Windows
+name: Buid Aseprite for Windows
 
 on:
   push:
