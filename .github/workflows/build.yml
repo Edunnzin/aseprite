@@ -1,4 +1,4 @@
-name: Build Aseprite for Windows
+name: Build Aseprite
 
 on:
   push:
@@ -10,36 +10,79 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]  # Define as plataformas
 
     steps:
     - name: Check out the repository
       uses: actions/checkout@v2
+      with:
+        submodules: true  # Inicializa e atualiza submódulos
 
-    - name: Setup CMake
+    - name: Set up CMake
       uses: jwlawson/actions-setup-cmake@v1.10
 
-    - name: Install dependencies
+    - name: Install dependencies for Windows
+      if: matrix.os == 'windows-latest'
       run: |
         choco install --yes git
         choco install --yes mingw
-        choco install --yes gtk3  # Instala o GTK3, se necessário
+        choco install --yes gtk3
         choco install --yes cmake
 
-    - name: Build Aseprite
+    - name: Install dependencies for Android
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget unzip
+        wget https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip
+        unzip android-ndk-r21e-linux-x86_64.zip -d $HOME
+        echo "export ANDROID_NDK_HOME=$HOME/android-ndk-r21e" >> $GITHUB_ENV
+        echo "$HOME/android-ndk-r21e" >> $GITHUB_PATH
+
+    - name: Build Aseprite for Windows
+      if: matrix.os == 'windows-latest'
       run: |
         mkdir build
         cd build
         cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
         mingw32-make aseprite
 
-    - name: Package Aseprite
+    - name: Build Aseprite for Android
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+                   -DANDROID_PLATFORM=android-21 \
+                   -DANDROID_ABI=armeabi-v7a \
+                   -DCMAKE_BUILD_TYPE=Release
+        cmake --build . --target aseprite
+
+    - name: Package Aseprite for Windows
+      if: matrix.os == 'windows-latest'
       run: |
         mkdir -p aseprite-bin
         copy /Y bin/Release/aseprite.exe aseprite-bin/aseprite.exe
 
-    - name: Upload Aseprite Executable
+    - name: Package Aseprite for Android
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        mkdir -p aseprite-bin
+        cp -r bin/Release/aseprite* aseprite-bin/
+
+    - name: Upload Aseprite Executable for Windows
+      if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
-        name: aseprite
+        name: aseprite-windows
         path: aseprite-bin/aseprite.exe
+
+    - name: Upload Aseprite Executable for Android
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: aseprite-android
+        path: aseprite-bin/*
