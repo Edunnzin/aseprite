@@ -16,24 +16,29 @@ jobs:
     - name: Check out the repository
       uses: actions/checkout@v2
 
-    - name: Setup Visual Studio
-      uses: microsoft/setup-msbuild@v1.1.0
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.10
 
     - name: Install dependencies
       run: |
-        nuget restore aseprite.sln
+        choco install --yes git
+        choco install --yes gtksharp
+        choco install --yes mingw
 
     - name: Build Aseprite
       run: |
-        msbuild aseprite.sln /p:Configuration=Release /p:Platform=x64
+        mkdir build
+        cd build
+        cmake .. -G "MinGW Makefiles"
+        mingw32-make aseprite
 
     - name: Package Aseprite
       run: |
         mkdir -p aseprite-bin
-        copy /Y bin\Release\aseprite.exe aseprite-bin\aseprite.exe
+        copy /Y bin/Release/aseprite.exe aseprite-bin/aseprite.exe
 
     - name: Upload Aseprite Executable
       uses: actions/upload-artifact@v4
       with:
         name: aseprite
-        path: aseprite-bin\aseprite.exe
+        path: aseprite-bin/aseprite.exe
